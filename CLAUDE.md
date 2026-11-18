@@ -58,7 +58,7 @@ An error thrown anywhere goes to `errorHandler`.
   - Within 30 s → plain 401, which covers the multi-tab race.
 - `asAdmin: true` + non-admin → `403 NOT_ADMIN`, checked **after** the password and **before** any session is created.
 - An expired access token must return code **`TOKEN_EXPIRED`**: the frontend refreshes on exactly that code.
-- Demo accounts (seed): 20 users `<firstname>@example.com` (asha, vikram, priya, …) / `User@12345`. Admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+- Demo accounts (seed): 20 users `<firstname>@example.com` (asha, vikram, priya, …) / `User@12345`. Admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD` = `admin@gmail.com` / `admin@123`. The seed never changes an existing account, so changing these later needs an UPDATE on the users row (or a fresh DB).
 
 ## Gotchas
 
