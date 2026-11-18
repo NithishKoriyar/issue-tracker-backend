@@ -30,8 +30,35 @@ export async function findByEmailWithPassword(email) {
   return rows[0] ?? null
 }
 
-// Admin Users page + dashboard: every user with how many issues they hold.
-export async function listWithIssueCounts() {
+// Escape LIKE's wildcards so a search for "50%" or "a_b" matches those exact
+// characters instead of "anything". (Backslash is ILIKE's default escape.)
+const escapeLike = (text) => text.replace(/[\\%_]/g, '\\$&')
+
+// Users page, dashboard and the user picker: users with how many issues they hold.
+//  search → matches anywhere in the name or email, case-insensitive
+//  role   → only 'user' or only 'admin' accounts (the picker asks for 'user')
+//  limit  → at most N rows (the picker shows 5 before you type)
+// Values go in as $n parameters; the SQL text is fixed strings only.
+export async function listWithIssueCounts({ search, role, limit } = {}) {
+  const params = []
+  const conditions = []
+  if (search) {
+    params.push(`%${escapeLike(search)}%`)
+    conditions.push(
+      `(u.name ILIKE $${params.length} OR u.email ILIKE $${params.length})`,
+    )
+  }
+  if (role) {
+    params.push(role)
+    conditions.push(`u.role = $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  let limitClause = ''
+  if (limit) {
+    params.push(limit)
+    limitClause = `LIMIT $${params.length}`
+  }
+
   const { rows } = await query(
     `SELECT u.id, u.name, u.email, u.role, u.created_at AS "createdAt",
             json_build_object(
@@ -42,8 +69,11 @@ export async function listWithIssueCounts() {
             ) AS "issueCounts"
      FROM users u
      LEFT JOIN issues i ON i.assigned_to = u.id
+     ${where}
      GROUP BY u.id
-     ORDER BY u.role, u.name`,
+     ORDER BY u.role, u.name, u.id
+     ${limitClause}`,
+    params,
   )
   return rows
 }
