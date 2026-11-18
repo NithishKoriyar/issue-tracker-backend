@@ -3,11 +3,10 @@ import * as issueService from '../services/issue.service.js'
 // req.user           → from requireAuth
 // req.validatedParams / req.validatedQuery / req.body → from validate()
 
-// GET /api/issues?status=&assignee=
+// GET /api/issues?status=&assignee=&page=&pageSize=
+// → { issues, pagination: { page, pageSize, total, totalPages } }
 export async function list(req, res) {
-  res.json({
-    issues: await issueService.listIssues(req.user, req.validatedQuery),
-  })
+  res.json(await issueService.listIssues(req.user, req.validatedQuery))
 }
 
 // GET /api/issues/:id

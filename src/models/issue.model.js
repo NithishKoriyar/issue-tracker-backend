@@ -13,9 +13,10 @@ const ISSUE_SELECT = `
   LEFT JOIN users a ON a.id = i.assigned_to
   JOIN users c ON c.id = i.created_by`
 
-// Filters: { assigneeId, unassigned, status, limit }. Every value is passed as
-// a $n parameter — the WHERE clause is built from fixed strings only.
-export async function list({ assigneeId, unassigned, status, limit } = {}) {
+// Builds the WHERE clause for the list filters { assigneeId, unassigned, status }.
+// Every value goes in as a $n parameter; the SQL text is fixed strings only.
+// Shared by list() and countMatching(), so a page and its total always agree.
+function buildWhere({ assigneeId, unassigned, status } = {}) {
   const where = []
   const params = []
 
@@ -29,16 +30,40 @@ export async function list({ assigneeId, unassigned, status, limit } = {}) {
     where.push(`i.status = $${params.length}`)
   }
 
-  let sql = ISSUE_SELECT
-  if (where.length) sql += ` WHERE ${where.join(' AND ')}`
-  sql += ' ORDER BY i.updated_at DESC, i.id DESC'
+  return {
+    clause: where.length ? ` WHERE ${where.join(' AND ')}` : '',
+    params,
+  }
+}
+
+// Newest activity first. `limit` / `offset` select one page.
+// The id tie-breaker keeps the order stable, so rows never repeat or go
+// missing between pages when several share the same updated_at.
+export async function list({ limit, offset, ...filters } = {}) {
+  const { clause, params } = buildWhere(filters)
+
+  let sql = `${ISSUE_SELECT}${clause} ORDER BY i.updated_at DESC, i.id DESC`
   if (limit) {
     params.push(limit)
     sql += ` LIMIT $${params.length}`
   }
+  if (offset) {
+    params.push(offset)
+    sql += ` OFFSET $${params.length}`
+  }
 
   const { rows } = await query(sql, params)
   return rows
+}
+
+// How many issues match the same filters (for "page 2 of 7").
+export async function countMatching(filters = {}) {
+  const { clause, params } = buildWhere(filters)
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS total FROM issues i${clause}`,
+    params,
+  )
+  return rows[0].total
 }
 
 export async function findById(id) {

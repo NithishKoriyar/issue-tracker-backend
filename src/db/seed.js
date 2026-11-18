@@ -99,6 +99,55 @@ try {
         'closed',
         ashaId,
       ],
+      // A few more, so a fresh deployment has more than one page of issues.
+      [
+        'Session expires too early on mobile',
+        'Users on mobile get logged out after a few minutes of inactivity.',
+        'open',
+        vikramId,
+      ],
+      [
+        'Add a dark mode toggle',
+        'Several people asked for a dark theme for late-night work.',
+        'open',
+        null,
+      ],
+      [
+        'Search by issue title',
+        'Finding an old issue means scrolling the whole list.',
+        'in_progress',
+        vikramId,
+      ],
+      [
+        'Comment timestamps show UTC instead of local time',
+        'Times should follow the browser time zone.',
+        'closed',
+        ashaId,
+      ],
+      [
+        'Long titles overflow the table on small screens',
+        'Titles push the status column off-screen on phones.',
+        'open',
+        ashaId,
+      ],
+      [
+        'Email notification when an issue is assigned',
+        'Assignees only find out about new issues by checking the app.',
+        'open',
+        null,
+      ],
+      [
+        'Slow dashboard with many issues',
+        'The dashboard takes a few seconds to load in larger teams.',
+        'in_progress',
+        ashaId,
+      ],
+      [
+        'Broken link in the footer',
+        'The "Help" link returns a 404.',
+        'closed',
+        vikramId,
+      ],
     ]
 
     const issueIds = []

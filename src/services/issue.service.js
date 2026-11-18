@@ -5,15 +5,38 @@ import { badRequest, notFound } from '../utils/apiError.js'
 const isAdmin = (actor) => actor.role === 'admin'
 
 // Admin sees every issue (optionally filtered); a user only their own.
-export async function listIssues(actor, { status, assignee } = {}) {
-  if (!isAdmin(actor)) {
-    return issueModel.list({ assigneeId: actor.id, status })
+// Returns one page plus the numbers the UI needs for "page 2 of 7".
+export async function listIssues(
+  actor,
+  { status, assignee, page = 1, pageSize = 10 } = {},
+) {
+  const filters = isAdmin(actor)
+    ? {
+        status,
+        assigneeId: typeof assignee === 'number' ? assignee : undefined,
+        unassigned: assignee === 'unassigned',
+      }
+    : // A user's own issues only — any assignee filter they send is ignored.
+      { status, assigneeId: actor.id }
+
+  const [issues, total] = await Promise.all([
+    issueModel.list({
+      ...filters,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    }),
+    issueModel.countMatching(filters),
+  ])
+
+  return {
+    issues,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    },
   }
-  return issueModel.list({
-    status,
-    assigneeId: typeof assignee === 'number' ? assignee : undefined,
-    unassigned: assignee === 'unassigned',
-  })
 }
 
 // The single access rule for one issue: admin, or the person it's assigned to.

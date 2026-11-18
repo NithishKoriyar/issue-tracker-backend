@@ -32,12 +32,27 @@ export const issueIdParams = z.object({
     .positive('Issue id must be a number'),
 })
 
-// GET /issues?status=open&assignee=3   (assignee=unassigned for no assignee)
+// GET /issues?status=open&assignee=3&page=2&pageSize=10
+// (assignee=unassigned for no assignee)
 export const listIssuesQuery = z.object({
   status: status.optional(),
   assignee: z
     .union([z.literal('unassigned'), z.coerce.number().int().positive()])
     .optional(),
+  page: z.coerce
+    .number({ error: 'Page must be a number' })
+    .int('Page must be a whole number')
+    .min(1, 'Page must be 1 or more')
+    .optional()
+    .default(1),
+  // Capped so nobody can ask for the whole table in one request.
+  pageSize: z.coerce
+    .number({ error: 'Page size must be a number' })
+    .int('Page size must be a whole number')
+    .min(1, 'Page size must be between 1 and 100')
+    .max(100, 'Page size must be between 1 and 100')
+    .optional()
+    .default(10),
 })
 
 export const createIssueSchema = z.object({
