@@ -1,8 +1,9 @@
 import * as userService from '../services/user.service.js'
 
-// GET /api/users?search=&role=&limit=   (admin)
+// GET /api/users?search=&role=&page=&pageSize=   (admin)
+// → { users, pagination: { page, pageSize, total, totalPages } }
 export async function list(req, res) {
-  res.json({ users: await userService.listUsers(req.validatedQuery) })
+  res.json(await userService.listUsers(req.validatedQuery))
 }
 
 // GET /api/users/:id   (admin)

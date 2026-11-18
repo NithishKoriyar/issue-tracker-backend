@@ -34,12 +34,12 @@ export async function findByEmailWithPassword(email) {
 // characters instead of "anything". (Backslash is ILIKE's default escape.)
 const escapeLike = (text) => text.replace(/[\\%_]/g, '\\$&')
 
-// Users page, dashboard and the user picker: users with how many issues they hold.
+// WHERE clause for the user filters, shared by the list and the count so a
+// page and its total always agree.
 //  search → matches anywhere in the name or email, case-insensitive
 //  role   → only 'user' or only 'admin' accounts (the picker asks for 'user')
-//  limit  → at most N rows (the picker shows 5 before you type)
 // Values go in as $n parameters; the SQL text is fixed strings only.
-export async function listWithIssueCounts({ search, role, limit } = {}) {
+function buildUserWhere({ search, role } = {}) {
   const params = []
   const conditions = []
   if (search) {
@@ -52,23 +52,41 @@ export async function listWithIssueCounts({ search, role, limit } = {}) {
     params.push(role)
     conditions.push(`u.role = $${params.length}`)
   }
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  return {
+    clause: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '',
+    params,
+  }
+}
+
+// A user + how many issues they hold, by status. Shared by the queries below.
+const USER_WITH_COUNTS_SELECT = `
+  SELECT u.id, u.name, u.email, u.role, u.created_at AS "createdAt",
+         json_build_object(
+           'total',      COUNT(i.id)::int,
+           'open',       COUNT(i.id) FILTER (WHERE i.status = 'open')::int,
+           'inProgress', COUNT(i.id) FILTER (WHERE i.status = 'in_progress')::int,
+           'closed',     COUNT(i.id) FILTER (WHERE i.status = 'closed')::int
+         ) AS "issueCounts"
+  FROM users u
+  LEFT JOIN issues i ON i.assigned_to = u.id`
+
+// Users page and the user picker: users with their issue counts.
+// `limit` / `offset` select one page (omit both → everyone).
+// ORDER BY ends with the id so pages never overlap or skip a row.
+export async function listWithIssueCounts({ limit, offset, ...filters } = {}) {
+  const { clause: where, params } = buildUserWhere(filters)
   let limitClause = ''
   if (limit) {
     params.push(limit)
     limitClause = `LIMIT $${params.length}`
   }
+  if (offset) {
+    params.push(offset)
+    limitClause += ` OFFSET $${params.length}`
+  }
 
   const { rows } = await query(
-    `SELECT u.id, u.name, u.email, u.role, u.created_at AS "createdAt",
-            json_build_object(
-              'total',      COUNT(i.id)::int,
-              'open',       COUNT(i.id) FILTER (WHERE i.status = 'open')::int,
-              'inProgress', COUNT(i.id) FILTER (WHERE i.status = 'in_progress')::int,
-              'closed',     COUNT(i.id) FILTER (WHERE i.status = 'closed')::int
-            ) AS "issueCounts"
-     FROM users u
-     LEFT JOIN issues i ON i.assigned_to = u.id
+    `${USER_WITH_COUNTS_SELECT}
      ${where}
      GROUP BY u.id
      ORDER BY u.role, u.name, u.id
@@ -76,6 +94,34 @@ export async function listWithIssueCounts({ search, role, limit } = {}) {
     params,
   )
   return rows
+}
+
+// Dashboard "Issues by user": the regular users carrying the most work right
+// now — most unfinished (open + in progress) issues first, then most issues
+// overall. People with no issues at all are left out.
+export async function listBusiestUsers(limit) {
+  const { rows } = await query(
+    `${USER_WITH_COUNTS_SELECT}
+     WHERE u.role = 'user'
+     GROUP BY u.id
+     HAVING COUNT(i.id) > 0
+     ORDER BY COUNT(i.id) FILTER (WHERE i.status <> 'closed') DESC,
+              COUNT(i.id) DESC,
+              u.name, u.id
+     LIMIT $1`,
+    [limit],
+  )
+  return rows
+}
+
+// How many users match the same filters (for "page 2 of 3").
+export async function countUsers(filters = {}) {
+  const { clause, params } = buildUserWhere(filters)
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS total FROM users u ${clause}`,
+    params,
+  )
+  return rows[0].total
 }
 
 export async function create({ name, email, passwordHash, role }) {
